@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { bagActions } from "../store/bagSlice";
 import { itemsActions } from "../store/ItemsSlice";
 
-const API_BASE = "http://localhost:8080";
+import {API_BASE_URL} from "../util.js";
 
 const Bag = () => {
   const dispatch = useDispatch();
@@ -19,7 +19,7 @@ const Bag = () => {
 
     (async () => {
       // 1) hydrate bag ids
-      const res = await fetch(`${API_BASE}/bag/ids`, {
+      const res = await fetch(`${API_BASE_URL}/bag/ids`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -51,4 +51,5 @@ const Bag = () => {
 };
 
 export default Bag;
+
 
