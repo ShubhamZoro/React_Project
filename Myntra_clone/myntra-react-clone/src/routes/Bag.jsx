@@ -4,7 +4,7 @@ import BagSummary from "../components/BagSummary";
 import { useSelector, useDispatch } from "react-redux";
 import { useEffect } from "react";
 import { bagActions } from "../store/bagSlice";
-import { itemsActions } from "../store/itemsSlice";
+import { itemsActions } from "../store/ItemsSlice";
 
 const API_BASE = "http://localhost:8080";
 
@@ -51,3 +51,4 @@ const Bag = () => {
 };
 
 export default Bag;
+
