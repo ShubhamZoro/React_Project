@@ -6,7 +6,7 @@ import { authStatusActions } from "../store/authSlice";
 import { bagActions } from "../store/bagSlice";
 import { useRef } from "react";
 import { fetchStatusActions } from "../store/fetchStatusSlice";
-import { itemsActions } from "../store/itemsSlice";
+import { itemsActions } from "../store/ItemsSlice";
 import.meta.env?.VITE_API_BASE_URL;
 
 const Header = () => {
@@ -174,3 +174,4 @@ const Header = () => {
 };
 
 export default Header;
+
