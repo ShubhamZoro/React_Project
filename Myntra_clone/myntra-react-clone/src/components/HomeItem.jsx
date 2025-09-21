@@ -38,7 +38,7 @@ const HomeItem = ({ item }) => {
     if (!token) return navigate("/login");
     try {
       setBusy(true);
-      await fetch(`${API_BASE}/bag/${item.id}`, {
+      await fetch(`${API_BASE_URL}/bag/${item.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -86,4 +86,5 @@ const HomeItem = ({ item }) => {
 };
 
 export default HomeItem;
+
 
