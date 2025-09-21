@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 
 from config import settings
 
-JSON_PATH = "items.json"
+file_path = os.path.join(os.path.dirname(__file__), 'items.json')
 
 class Base(DeclarativeBase):
     pass
