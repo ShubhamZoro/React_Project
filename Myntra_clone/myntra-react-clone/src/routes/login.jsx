@@ -2,13 +2,12 @@ import React, { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { authStatusActions } from "../store/authSlice";
-
+import {API_BASE_URL} from "../util.js";
 function Login() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
-  const API_BASE = "http://localhost:8080";
   async function login(e) {
     e.preventDefault();
     const useremail = (emailRef.current.value || "").trim();
@@ -20,7 +19,7 @@ function Login() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/login`, {
+      const res = await fetch(`${API_BASE_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ useremail, password }),
@@ -79,3 +78,4 @@ function Login() {
 }
 
 export default Login;
+
