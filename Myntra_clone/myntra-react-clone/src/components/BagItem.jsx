@@ -1,14 +1,14 @@
 import { useDispatch, useSelector } from "react-redux";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { bagActions } from "../store/bagSlice";
-const API_BASE = "http://localhost:8080";
+import {API_BASE_URL} from "../util.js";
 const BagItem = ({ item }) => {
   const dispatch = useDispatch();
   const token = useSelector((s) => s.auth.token);
 
   const handleRemoveItem = async () => {
     if (token) {
-      await fetch(`${API_BASE}/bag/${item.id}`, {
+      await fetch(`${API_BASE_URL}/bag/${item.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -49,3 +49,4 @@ const BagItem = ({ item }) => {
 };
 
 export default BagItem;
+
