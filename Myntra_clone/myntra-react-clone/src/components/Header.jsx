@@ -7,7 +7,7 @@ import { bagActions } from "../store/bagSlice";
 import { useRef } from "react";
 import { fetchStatusActions } from "../store/fetchStatusSlice";
 import { itemsActions } from "../store/ItemsSlice";
-import.meta.env?.VITE_API_BASE_URL;
+import {API_BASE_URL} from "../util.js";
 
 const Header = () => {
   const bag = useSelector((store) => store.bag);
@@ -26,12 +26,11 @@ const Header = () => {
   let currentSearchController = null;
 
   const handleLogoClick = async (e) => {
-    const API_BASE = import.meta.env?.VITE_API_BASE_URL;
 
     try {
       dispatch(fetchStatusActions.markFetchingStarted());
 
-      const res = await fetch(`${API_BASE}/items`);
+      const res = await fetch(`${API_BASE_URL}/items`);
       if (!res.ok) throw new Error(`Failed to load items (${res.status})`);
 
       const data = await res.json();
@@ -174,4 +173,5 @@ const Header = () => {
 };
 
 export default Header;
+
 
