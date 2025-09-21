@@ -1,9 +1,9 @@
 import React, { useRef } from "react";
 import { useNavigate } from "react-router-dom";
-
+import {API_BASE_URL} from "../util.js";
 function Register() {
   const navigate = useNavigate();
-  const API_BASE = "http://localhost:8080";
+
 
   const usernameRef = useRef(null);
   const emailRef = useRef(null);
@@ -22,7 +22,7 @@ function Register() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/register`, {
+      const res = await fetch(`${API_BASE_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // If your backend only needs username+password, it's fine to send email; it will be ignored.
@@ -95,3 +95,4 @@ function Register() {
 }
 
 export default Register;
+
