@@ -5,7 +5,7 @@ import { AiFillDelete } from "react-icons/ai";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
-const API_BASE = "http://localhost:8080";
+import {API_BASE_URL} from "../util.js";
 
 const HomeItem = ({ item }) => {
   const dispatch = useDispatch();
@@ -20,7 +20,7 @@ const HomeItem = ({ item }) => {
     if (!token) return navigate("/login");
     try {
       setBusy(true);
-      await fetch(`${API_BASE}/bag`, {
+      await fetch(`${API_BASE_URL}/bag`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -86,3 +86,4 @@ const HomeItem = ({ item }) => {
 };
 
 export default HomeItem;
+
