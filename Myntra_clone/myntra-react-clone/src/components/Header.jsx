@@ -59,13 +59,13 @@ const Header = () => {
     currentSearchController = new AbortController();
 
     // normalize base url (remove trailing slash if any)
-    const API_BASE = import.meta.env?.VITE_API_BASE_URL;
+
 
     try {
       dispatch(fetchStatusActions.markFetchingStarted());
 
       const res = await fetch(
-        `${API_BASE}/search/items?q=${encodeURIComponent(q)}`,
+        `${API_BASE_URL}/search/items?q=${encodeURIComponent(q)}`,
         { signal: currentSearchController.signal }
       );
 
@@ -173,5 +173,6 @@ const Header = () => {
 };
 
 export default Header;
+
 
 
