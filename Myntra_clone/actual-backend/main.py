@@ -171,7 +171,8 @@ def search_items(
                     func.lower(Item.company).like(f"%{t.lower()}%"),
                     func.lower(Item.category).like(f"%{t.lower()}%"),
                     func.lower(Item.tags).like(f"%{t.lower()}%"),
-                ) for t in terms
+                )
+                for t in terms
             ]
         else:
             parts = [
@@ -180,7 +181,8 @@ def search_items(
                     Item.company.ilike(f"%{t}%"),
                     Item.category.ilike(f"%{t}%"),
                     Item.tags.ilike(f"%{t}%"),
-                ) for t in terms
+                )
+                for t in terms
             ]
         cond = and_(*parts) if op == "AND" else or_(*parts)
         rows = db.execute(select(Item).where(cond).limit(limit)).scalars().all()
@@ -193,7 +195,7 @@ def search_items(
             stmt = (
                 select(Item, rank.label("rank"))
                 .where(Item.__table__.c.tsv.op("@@")(ts_query))
-                .order_by(func.desc("rank"))
+                .order_by(desc("rank"))            # correct ordering in PG
                 .limit(limit)
             )
             rows = db.execute(stmt).mappings().all()
@@ -203,18 +205,25 @@ def search_items(
                 out.append({c.name: getattr(i, c.name) for c in i.__table__.columns})
             return out
         else:
-            metadata = MetaData()
-            items_fts = Table("items_fts", metadata)
+            # ---------- SQLite FTS5 ----------
+            # Build a prefix MATCH query: phrases exact, tokens as prefixes
             import re
             phrases = re.findall(r'"([^"]+)"', q)
             unquoted = re.sub(r'"[^"]+"', " ", q)
             tokens = re.findall(r"\w+", unquoted.lower())
-            match_expr = " ".join([*(f'"{p.strip()}"' for p in phrases if p.strip()), *(f"{t}*" for t in tokens)]) or q
+            match_expr = " ".join(
+                [*(f'"{p.strip()}"' for p in phrases if p.strip()), *(f"{t}*" for t in tokens)]
+            ) or q
+
+            # Reflect FTS table so items_fts.c.id exists
+            metadata = MetaData()
+            items_fts = Table("items_fts", metadata, autoload_with=engine)
 
             stmt = (
                 select(Item)
-                .select_from(items_fts.join(Item, Item.id == literal_column("items_fts.id")))
-                .where(items_fts.c.id.op("MATCH")(match_expr))
+                .select_from(items_fts.join(Item, Item.id == items_fts.c.id))
+                # MATCH the table (FTS5 best practice)
+                .where(literal_column("items_fts").op("MATCH")(match_expr))
                 .limit(limit)
             )
             rows = db.execute(stmt).scalars().all()
