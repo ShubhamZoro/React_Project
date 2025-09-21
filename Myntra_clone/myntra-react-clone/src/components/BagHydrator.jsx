@@ -2,8 +2,8 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { bagActions } from "../store/bagSlice";
+import {API_BASE_URL} from "../util.js";
 
-const API_BASE = "http://localhost:8080";
 
 export default function BagHydrator() {
   const token = useSelector((s) => s.auth.token);
@@ -16,7 +16,7 @@ export default function BagHydrator() {
     }
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/bag/ids`, {
+        const res = await fetch(`${API_BASE_URL}/bag/ids`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -27,3 +27,4 @@ export default function BagHydrator() {
 
   return null;
 }
+
