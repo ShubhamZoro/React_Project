@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import Mapping, Any
-
+import os
 from sqlalchemy import (
     create_engine, text, String, Integer, Float, Text, TIMESTAMP
 )
@@ -114,7 +114,7 @@ def _postgres_setup(conn):
     conn.exec_driver_sql("""CREATE INDEX IF NOT EXISTS idx_items_itemname ON items(item_name);""")
 
 def _seed_from_json_if_present(conn):
-    path = Path(JSON_PATH)
+    path = Path(file_path)
     if not path.exists():
         return
     data = json.loads(path.read_text(encoding="utf-8"))
