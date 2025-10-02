@@ -1,22 +1,19 @@
-from __future__ import annotations
 from pathlib import Path
 import json
-from typing import Mapping, Any
-import os
-from sqlalchemy import (
-    create_engine, text, String, Integer, Float, Text, TIMESTAMP
-)
+from sqlalchemy import create_engine, text, String, Integer, Float, Text, TIMESTAMP
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
-
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from config import settings
+from typing import Any
 
-file_path = os.path.join(os.path.dirname(__file__), 'items.json')
+file_path = Path("items.json")
 
 class Base(DeclarativeBase):
     pass
 
-# ---------- ORM Models ----------
+
+
 class Item(Base):
     __tablename__ = "items"
     id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -32,7 +29,9 @@ class Item(Base):
     rating_count: Mapped[int | None] = mapped_column(Integer)
     category: Mapped[str | None] = mapped_column(String(128))
     tags: Mapped[str | None] = mapped_column(Text)
-    # Postgres FTS column (created in _postgres_setup)
+
+    # 👇 Add this line so SQLAlchemy can see the column
+    tsv: Mapped[Any] = mapped_column(TSVECTOR)
 
 class User(Base):
     __tablename__ = "users"
@@ -50,12 +49,7 @@ class BagItem(Base):
     added_at: Mapped[Any] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
 
 # ---------- Engine & Session ----------
-engine = create_engine(
-    settings.DATABASE_URL,
-    future=True,
-    pool_pre_ping=True,
-    echo=False,
-)
+engine = create_engine(settings.DATABASE_URL, future=True, pool_pre_ping=True, echo=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 def get_session():
@@ -65,36 +59,8 @@ def get_session():
     finally:
         db.close()
 
-# ---------- Bootstrap helpers ----------
-def _sqlite_setup(conn):
-    # FTS5 virtual table + triggers (idempotent)
-    conn.exec_driver_sql("""
-    CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
-        id, item_name, company, category, tags, tokenize='unicode61'
-    );
-    """)
-    conn.exec_driver_sql("""
-    CREATE TRIGGER IF NOT EXISTS items_ai
-    AFTER INSERT ON items BEGIN
-        INSERT INTO items_fts (id, item_name, company, category, tags)
-        VALUES (new.id, new.item_name, new.company, new.category, new.tags);
-    END;""")
-    conn.exec_driver_sql("""
-    CREATE TRIGGER IF NOT EXISTS items_ad
-    AFTER DELETE ON items BEGIN
-        DELETE FROM items_fts WHERE id = old.id;
-    END;""")
-    conn.exec_driver_sql("""
-    CREATE TRIGGER IF NOT EXISTS items_au
-    AFTER UPDATE ON items BEGIN
-        UPDATE items_fts
-        SET item_name = new.item_name, company = new.company,
-            category = new.category, tags = new.tags
-        WHERE id = old.id;
-    END;""")
-
+# ---------- Setup ----------
 def _postgres_setup(conn):
-    # Ensure tsvector column + GIN index for FTS (idempotent)
     conn.exec_driver_sql("""
     ALTER TABLE IF EXISTS items
     ADD COLUMN IF NOT EXISTS tsv tsvector
@@ -107,17 +73,15 @@ def _postgres_setup(conn):
       )
     ) STORED;
     """)
-    conn.exec_driver_sql("""CREATE INDEX IF NOT EXISTS idx_items_tsv ON items USING GIN (tsv);""")
-    # Helpful regular indexes
-    conn.exec_driver_sql("""CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);""")
-    conn.exec_driver_sql("""CREATE INDEX IF NOT EXISTS idx_items_company  ON items(company);""")
-    conn.exec_driver_sql("""CREATE INDEX IF NOT EXISTS idx_items_itemname ON items(item_name);""")
+    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_tsv ON items USING GIN (tsv);")
+    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);")
+    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_company ON items(company);")
+    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_itemname ON items(item_name);")
 
 def _seed_from_json_if_present(conn):
-    path = Path(file_path)
-    if not path.exists():
+    if not file_path.exists():
         return
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(file_path.read_text(encoding="utf-8"))
     items = data["items"][0]
 
     upsert_sql = text("""
@@ -133,7 +97,7 @@ def _seed_from_json_if_present(conn):
         rating_count=excluded.rating_count, category=excluded.category, tags=excluded.tags
     """)
 
-    def norm(it: Mapping[str, Any]) -> Mapping[str, Any]:
+    def norm(it):
         r = it.get("rating") or {}
         return dict(
             id=it["id"], image=it.get("image"), company=it.get("company"),
@@ -148,12 +112,8 @@ def _seed_from_json_if_present(conn):
         conn.execute(upsert_sql, norm(it))
 
 def init_db(seed_from_json: bool = True):
-    # Base tables
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
-        if engine.dialect.name == "sqlite":
-            _sqlite_setup(conn)
-        else:
-            _postgres_setup(conn)
+        _postgres_setup(conn)
         if seed_from_json:
             _seed_from_json_if_present(conn)

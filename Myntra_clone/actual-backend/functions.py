@@ -20,7 +20,7 @@ def verify_password(password: str, stored_hash_hex: str, salt_hex: str) -> bool:
     calc, _ = hash_password(password, salt_hex)
     return secrets.compare_digest(calc, stored_hash_hex)
 
-# ---------- Minimal JWT (HS256) ----------
+# ---------- Minimal JWT ----------
 def _b64url(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).decode().rstrip("=")
 
