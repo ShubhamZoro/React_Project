@@ -1,13 +1,2 @@
 .vercel
-# Python virtual environment
-venva/
-__pycache__/
-*.pyc
 
-# Node.js dependencies
-node_modules/
-
-# Optional: OS or editor files
-.DS_Store
-.vscode/
-.idea/

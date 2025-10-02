@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     DEBUG: bool = False
 
-    DATABASE_URL: str  # Set your Neon/Postgres URL here
+    DATABASE_URL: str=os.environ.get("DATABASE_URL") # Set your Neon/Postgres URL here
     ALLOWED_ORIGINS: str = "*"
 
     # Security
