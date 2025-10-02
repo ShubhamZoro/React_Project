@@ -1,54 +1,33 @@
 from typing import Literal
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update, delete, or_, and_, func, Table, MetaData, literal_column, desc
+from sqlalchemy import select, update, delete, or_, func, text
 import uuid
 
 import config
-from db import init_db, get_session, Item, User, BagItem, engine
+from db import get_session, Item, User, BagItem
+
 from functions import create_access_token, hash_password, verify_password, get_current_user
 
-# ---------------- Lifespan ----------------
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    init_db(seed_from_json=True)  # create tables, FTS, seed JSON
-    yield
-
-# ---------------- App ----------------
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ALLOW_ORIGINS or ["*"],
-    allow_methods=config.CORS_ALLOW_METHODS,
-    allow_headers=config.CORS_ALLOW_HEADERS,
+    allow_methods=config.CORS_ALLOW_METHODS or ["*"],
+    allow_headers=config.CORS_ALLOW_HEADERS or ["*"],
 )
 
 # ---------------- Items ----------------
 @app.get("/items")
 def get_items(db: Session = Depends(get_session)):
-    items = db.execute(select(Item)).scalars().all()
+    items = db.query(Item).limit(50).all()
     return {"items": [{c.name: getattr(i, c.name) for c in i.__table__.columns} for i in items]}
 
 @app.post("/items", status_code=201)
 def create_item(payload: dict, db: Session = Depends(get_session)):
-    obj = Item(
-        id=str(uuid.uuid4()),
-        image=payload.get("image"),
-        company=payload.get("company"),
-        item_name=payload.get("item_name"),
-        original_price=payload.get("original_price"),
-        current_price=payload.get("current_price"),
-        discount_percentage=payload.get("discount_percentage"),
-        return_period=payload.get("return_period"),
-        delivery_date=payload.get("delivery_date"),
-        rating_stars=payload.get("rating_stars"),
-        rating_count=payload.get("rating_count"),
-        category=payload.get("category"),
-        tags=payload.get("tags"),
-    )
+    obj = Item(id=str(uuid.uuid4()), **{k: payload.get(k) for k in payload})
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -56,12 +35,7 @@ def create_item(payload: dict, db: Session = Depends(get_session)):
 
 @app.patch("/items/{item_id}")
 def update_item(item_id: str, payload: dict, db: Session = Depends(get_session)):
-    stmt = (
-        update(Item)
-        .where(Item.id == item_id)
-        .values(**{k: v for k, v in payload.items() if hasattr(Item, k)})
-        .execution_options(synchronize_session="fetch")
-    )
+    stmt = update(Item).where(Item.id == item_id).values(**payload).execution_options(synchronize_session="fetch")
     res = db.execute(stmt)
     if res.rowcount == 0:
         raise HTTPException(status_code=404, detail="item not found")
@@ -83,71 +57,31 @@ def register(payload: dict, db: Session = Depends(get_session)):
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
     email = (payload.get("email") or "").strip()
-
     if not username or not password or not email:
         raise HTTPException(status_code=400, detail="username, email and password are required")
-
-    # check if username OR email already exists
-    exists = db.scalar(
-        select(User.id).where(or_(User.username == username, User.email == email))
-    )
+    exists = db.scalar(select(User.id).where(or_(User.username == username, User.email == email)))
     if exists:
         raise HTTPException(status_code=409, detail="username or email already exists")
-
-    # hash password with salt
     pwd_hash, salt = hash_password(password)
-
-    # create user
     user = User(username=username, email=email, password_hash=pwd_hash, salt=salt)
     db.add(user)
-
-    try:
-        db.commit()
-        db.refresh(user)
-    except Exception:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="error creating user")
-
+    db.commit()
+    db.refresh(user)
     return {"message": "User created", "user": {"id": user.id, "username": user.username, "email": user.email}}
-
 
 @app.post("/login")
 def login(payload: dict, db: Session = Depends(get_session)):
     email = (payload.get("useremail") or "").strip()
     password = payload.get("password") or ""
-
     if not email or not password:
         raise HTTPException(status_code=400, detail="email and password are required")
-
-    # check if user exists
-    row = db.execute(
-        select(User.id, User.username, User.email, User.password_hash, User.salt)
-        .where(User.email == email)
-    ).mappings().first()
-
-    if not row:
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
         raise HTTPException(status_code=404, detail="user not found")
-
-    # check password
-    if not verify_password(password, row["password_hash"], row["salt"]):
+    if not verify_password(password, user.password_hash, user.salt):
         raise HTTPException(status_code=401, detail="password does not match")
-
-    # generate token
-    token = create_access_token(
-        str(row["id"]),
-        extra={"username": row["username"], "email": row["email"]}
-    )
-
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": row["id"],
-            "username": row["username"],
-            "email": row["email"]
-        },
-    }
-
+    token = create_access_token(str(user.id), extra={"username": user.username, "email": user.email})
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user.id, "username": user.username, "email": user.email}}
 
 @app.get("/me")
 def me(current_user: dict = Depends(get_current_user)):
@@ -160,7 +94,6 @@ def add_to_bag(payload: dict, current_user: dict = Depends(get_current_user), db
     if not product_id:
         raise HTTPException(status_code=400, detail="product_id is required")
     email = current_user["email"]
-
     existing = db.get(BagItem, {"email": email, "product_id": product_id})
     if not existing:
         db.add(BagItem(email=email, product_id=product_id))
@@ -184,14 +117,9 @@ def get_bag_ids(current_user: dict = Depends(get_current_user), db: Session = De
 
 # ---------------- Search ----------------
 @app.get("/search/items")
-def search_items(
-    q: str = Query(..., min_length=1, description="Free text search"),
-    limit: int = Query(50, ge=1, le=200, description="Max items to return"),
-    db: Session = Depends(get_session)
-):
-    ts_query = func.plainto_tsquery("simple", q)
-    stmt = select(Item).where(Item.__table__.c.tsv.op("@@")(ts_query)).limit(limit)
-    rows = db.execute(stmt).scalars().all()
+def search_items(q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=200), db: Session = Depends(get_session)):
+    stmt = select(Item).where(text("tsv @@ plainto_tsquery('simple', :q)")).limit(limit)
+    rows = db.execute(stmt, {"q": q}).scalars().all()
     return {"items": [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in rows]}
 
 # ---------------- Run ----------------

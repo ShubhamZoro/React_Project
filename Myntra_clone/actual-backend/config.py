@@ -1,11 +1,10 @@
 from pydantic_settings import BaseSettings
 from typing import List
-
+import os
 class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     DEBUG: bool = False
 
-    DATABASE_URL: str=os.environ.get("DATABASE_URL") # Set your Neon/Postgres URL here
     ALLOWED_ORIGINS: str = "*"
 
     # Security

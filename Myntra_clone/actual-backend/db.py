@@ -1,18 +1,20 @@
 from pathlib import Path
 import json
-from sqlalchemy import create_engine, text, String, Integer, Float, Text, TIMESTAMP
+from sqlalchemy import create_engine, String, Integer, Float, Text, TIMESTAMP, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.pool import NullPool
 from config import settings
 from typing import Any
 
 file_path = Path("items.json")
 
+# Base class
 class Base(DeclarativeBase):
     pass
 
-
+# ---------------- Models ----------------
 
 class Item(Base):
     __tablename__ = "items"
@@ -29,9 +31,7 @@ class Item(Base):
     rating_count: Mapped[int | None] = mapped_column(Integer)
     category: Mapped[str | None] = mapped_column(String(128))
     tags: Mapped[str | None] = mapped_column(Text)
-
-    # 👇 Add this line so SQLAlchemy can see the column
-    tsv: Mapped[Any] = mapped_column(TSVECTOR)
+    tsv: Mapped[Any] = mapped_column(TSVECTOR)  # For full-text search
 
 class User(Base):
     __tablename__ = "users"
@@ -48,8 +48,17 @@ class BagItem(Base):
     product_id: Mapped[str] = mapped_column(String, primary_key=True)
     added_at: Mapped[Any] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
 
-# ---------- Engine & Session ----------
-engine = create_engine(settings.DATABASE_URL, future=True, pool_pre_ping=True, echo=True)
+# ---------------- Engine & Session ----------------
+
+# NullPool ensures serverless safety
+engine = create_engine(
+    settings.DATABASE_URL,
+    poolclass=NullPool,
+    connect_args={"sslmode": "require"},
+    future=True,
+    echo=True
+)
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 def get_session():
@@ -59,8 +68,10 @@ def get_session():
     finally:
         db.close()
 
-# ---------- Setup ----------
-def _postgres_setup(conn):
+# ---------------- Utility for TSV and Seeding ----------------
+
+def setup_items_table(conn):
+    """Create TSV column and indexes if not exists."""
     conn.exec_driver_sql("""
     ALTER TABLE IF EXISTS items
     ADD COLUMN IF NOT EXISTS tsv tsvector
@@ -78,7 +89,8 @@ def _postgres_setup(conn):
     conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_company ON items(company);")
     conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_items_itemname ON items(item_name);")
 
-def _seed_from_json_if_present(conn):
+def seed_items_from_json(conn):
+    """Seed items from JSON if file exists."""
     if not file_path.exists():
         return
     data = json.loads(file_path.read_text(encoding="utf-8"))
@@ -97,7 +109,7 @@ def _seed_from_json_if_present(conn):
         rating_count=excluded.rating_count, category=excluded.category, tags=excluded.tags
     """)
 
-    def norm(it):
+    def normalize(it):
         r = it.get("rating") or {}
         return dict(
             id=it["id"], image=it.get("image"), company=it.get("company"),
@@ -109,11 +121,4 @@ def _seed_from_json_if_present(conn):
         )
 
     for it in items:
-        conn.execute(upsert_sql, norm(it))
-
-def init_db(seed_from_json: bool = True):
-    Base.metadata.create_all(bind=engine)
-    with engine.begin() as conn:
-        _postgres_setup(conn)
-        if seed_from_json:
-            _seed_from_json_if_present(conn)
+        conn.execute(upsert_sql, normalize(it))
