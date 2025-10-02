@@ -1,1 +1,1 @@
-export const API_BASE_URL = "http://127.0.0.1:8080"
+export const API_BASE_URL = "https://myntrabackend-blu2r8iq4-shubham-shekhars-projects-b5d38cbe.vercel.app/"

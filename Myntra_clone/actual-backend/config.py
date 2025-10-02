@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     ALLOWED_ORIGINS: str = "*"
-
+    DATABASE_URL: str= os.getenv("DATABASE_URL")
     # Security
     PBKDF2_ITERATIONS: int = 150_000
     SECRET_KEY: str = "change-me"
